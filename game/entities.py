@@ -77,17 +77,24 @@ class Enemy:
         self.angle = 0.0
         self.anim_timer = random.uniform(0, math.pi * 2)
         self.attack_timer = 0
-        self.attack_cooldown = 40 if is_boss else 0
+        self.attack_cooldown = 8 if is_boss else 0
+        self.boss_phase = 0
+        self.spiral_angle = 0.0
+        self.pattern_timer = 0
 
     def update(self, px, py):
         self.anim_timer += 0.05
         dx = px - self.x
         dy = py - self.y
         dist = math.sqrt(dx * dx + dy * dy)
-        if dist > 1:
-            self.x += dx / dist * self.speed
-            self.y += dy / dist * self.speed
-            self.angle = math.atan2(dy, dx)
+        if not self.is_boss:
+            if dist > 1:
+                self.x += dx / dist * self.speed
+                self.y += dy / dist * self.speed
+                self.angle = math.atan2(dy, dx)
+        else:
+            # Boss fica parado, só gira visualmente
+            self.angle += 0.02
         if self.attack_timer > 0:
             self.attack_timer -= 1
 
@@ -116,16 +123,31 @@ class XPOrb:
 
 
 class BossProjectile:
-    def __init__(self, x, y, angle, speed=4.0, damage=15):
+    def __init__(self, x, y, angle, speed=4.5, damage=12):
         self.x = x
         self.y = y
         self.vx = math.cos(angle) * speed
         self.vy = math.sin(angle) * speed
         self.damage = damage
-        self.lifetime = 180
+        self.lifetime = 2000
         self.angle = angle
+        self.bounces = 0
+        self.max_bounces = 3
 
     def update(self):
         self.x += self.vx
         self.y += self.vy
         self.lifetime -= 1
+
+        # Ricochete nas bordas do mundo
+        if self.bounces < self.max_bounces:
+            if self.x <= 0 or self.x >= WORLD_W:
+                self.vx = -self.vx
+                self.x = max(1, min(WORLD_W - 1, self.x))
+                self.bounces += 1
+                self.angle = math.atan2(self.vy, self.vx)
+            if self.y <= 0 or self.y >= WORLD_H:
+                self.vy = -self.vy
+                self.y = max(1, min(WORLD_H - 1, self.y))
+                self.bounces += 1
+                self.angle = math.atan2(self.vy, self.vx)

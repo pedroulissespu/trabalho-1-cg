@@ -22,9 +22,9 @@ POWER_DEFS = {
     "grupo": {
         "name": "GRUPO DE ESTUDOS",
         "desc": [
-            "+1 LAPIS",
-            "+2 LAPIS",
-            "+3 LAPIS",
+            "ATAQUE +20%",
+            "ATAQUE +40%",
+            "ATAQUE +60%",
         ],
         "max_level": 3,
         "icon": "G",
@@ -107,8 +107,13 @@ class PowerManager:
         return 1.0 + lvl * 0.15
 
     def extra_projectiles(self):
-        """Projéteis extras (Grupo de Estudos)."""
-        return self.levels["grupo"]
+        """Projéteis extras (removido, retorna 0)."""
+        return 0
+
+    def attack_speed_mult(self):
+        """Multiplicador de velocidade de ataque (Grupo de Estudos)."""
+        lvl = self.levels["grupo"]
+        return 1.0 + lvl * 0.2
 
     def damage_mult(self):
         """Multiplicador de dano (Cola na Prova)."""

@@ -15,7 +15,19 @@ ASSETS_DIR = os.path.join(PROJECT_ROOT, "assets")
 # Formas temáticas como polígonos
 # =====================================================
 def _make_player_shape():
-    return [(-6, -12), (6, -12), (10, -2), (6, 12), (-6, 12), (-10, -2)]
+    # Corpo do estudante (torso retangular)
+    return [(-5, -4), (5, -4), (5, 10), (-5, 10)]
+
+def _make_player_legs():
+    # Pernas (dois retângulos)
+    return [
+        [(-5, 10), (-1, 10), (-1, 16), (-5, 16)],  # perna esq
+        [(1, 10), (5, 10), (5, 16), (1, 16)],       # perna dir
+    ]
+
+def _make_player_backpack():
+    # Mochila nas costas
+    return [(-7, -2), (-5, -2), (-5, 8), (-7, 8)]
 
 def _make_grade_shape():
     return [(-12, -12), (12, -12), (12, 12), (-12, 12)]
@@ -41,6 +53,8 @@ def _make_xp_shape():
     return [(0, -6), (5, 0), (0, 6), (-5, 0)]
 
 PLAYER_SHAPE = _make_player_shape()
+PLAYER_LEGS = _make_player_legs()
+PLAYER_BACKPACK = _make_player_backpack()
 GRADE_SHAPES = [_make_grade_shape(), _make_fast_grade_shape(), _make_tank_grade_shape()]
 BOSS_SHAPE = _make_boss_shape()
 PROJ_SHAPE = _make_projectile_shape()

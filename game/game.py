@@ -89,15 +89,11 @@ class Game:
         self.enemies.append(Enemy(ex, ey, hp, spd, dmg, kind))
 
     def spawn_boss(self):
-        angle = random.uniform(0, 2 * math.pi)
-        dist = 500
-        ex = self.player.x + math.cos(angle) * dist
-        ey = self.player.y + math.sin(angle) * dist
-        ex = max(50, min(WORLD_W - 50, ex))
-        ey = max(50, min(WORLD_H - 50, ey))
+        ex = WORLD_W / 2
+        ey = WORLD_H / 2
 
-        boss_hp = 1500 + self.player.level * 80
-        boss = Enemy(ex, ey, boss_hp, 1.0, 25, kind=0, is_boss=True)
+        boss_hp = 50000 + self.player.level * 500
+        boss = Enemy(ex, ey, boss_hp, 0, 20, kind=0, is_boss=True)
         # Limpar inimigos normais — só o boss fica
         self.enemies = [e for e in self.enemies if e.is_boss]
         self.enemies.append(boss)
@@ -123,17 +119,12 @@ class Game:
         if closest and min_dist < 300 * 300:
             base_angle = math.atan2(closest.y - self.player.y, closest.x - self.player.x)
             dmg = int(self.player.damage * self.powers.damage_mult())
-            extra = self.powers.extra_projectiles()
-            total = 1 + extra
-            spread = 0.15  # radianos entre cada projétil
-            for i in range(total):
-                offset = (i - (total - 1) / 2) * spread
-                angle = base_angle + offset
-                self.projectiles.append(
-                    Projectile(self.player.x, self.player.y, angle,
-                               self.player.proj_speed, dmg)
-                )
-            self.player.attack_timer = self.player.attack_cooldown
+            self.projectiles.append(
+                Projectile(self.player.x, self.player.y, base_angle,
+                           self.player.proj_speed, dmg)
+            )
+            cooldown = max(3, int(self.player.attack_cooldown / self.powers.attack_speed_mult()))
+            self.player.attack_timer = cooldown
 
     def update(self):
         if self.state == GameState.TITLE:
@@ -167,16 +158,16 @@ class Game:
         if not self.boss_spawned and self.semester_timer >= self.boss_spawn_time:
             self.spawn_boss()
 
-        # Spawn inimigos normais (só antes do boss)
-        if not self.boss_spawned:
-            self.spawn_timer += 1
-            if self.spawn_timer >= self.spawn_rate:
-                self.spawn_timer = 0
-                num = 1 + self.player.level // 3
-                for _ in range(num):
-                    self.spawn_enemy()
-                if self.spawn_rate > 15:
-                    self.spawn_rate -= 1
+        # Spawn inimigos normais (durante boss: frequência menor)
+        self.spawn_timer += 1
+        boss_spawn_rate = self.spawn_rate * 3 if self.boss_spawned else self.spawn_rate
+        if self.spawn_timer >= boss_spawn_rate:
+            self.spawn_timer = 0
+            num = 1 if self.boss_spawned else 1 + self.player.level // 3
+            for _ in range(num):
+                self.spawn_enemy()
+            if not self.boss_spawned and self.spawn_rate > 15:
+                self.spawn_rate -= 1
 
         self.auto_attack()
 
@@ -189,16 +180,79 @@ class Game:
                 self.player.hp -= e.damage
                 self.player.invincible = 30
 
-            # Boss atira projéteis
+            # Boss atira projéteis — padrões variados alternando rápido
             if e.is_boss and e.attack_timer <= 0:
-                px, py = self.player.x, self.player.y
-                a = math.atan2(py - e.y, px - e.x)
-                # Tiro triplo espalhado
-                for offset in [-0.3, 0, 0.3]:
-                    self.boss_projectiles.append(
-                        BossProjectile(e.x, e.y, a + offset, 3.5, 20)
-                    )
-                e.attack_timer = e.attack_cooldown
+                bullet_slow = 2.5
+                bullet_med = 3.2
+                bullet_fast = 3.8
+
+                e.pattern_timer += 1
+                phase = e.pattern_timer % 360
+
+                if phase < 60:
+                    # Espiral tripla horária
+                    e.spiral_angle += 0.12
+                    for arm in range(3):
+                        base = e.spiral_angle + arm * (2 * math.pi / 3)
+                        self.boss_projectiles.append(
+                            BossProjectile(e.x, e.y, base, bullet_slow, 10)
+                        )
+                    e.attack_timer = 4
+
+                elif phase < 120:
+                    # Anel completo (20 balas de uma vez)
+                    num_ring = 20
+                    e.spiral_angle += 0.1
+                    for i in range(num_ring):
+                        ang = (2 * math.pi / num_ring) * i + e.spiral_angle
+                        self.boss_projectiles.append(
+                            BossProjectile(e.x, e.y, ang, bullet_med, 10)
+                        )
+                    e.attack_timer = 15
+
+                elif phase < 180:
+                    # Espiral anti-horária quádrupla
+                    e.spiral_angle -= 0.1
+                    for arm in range(4):
+                        ang = e.spiral_angle + arm * (math.pi / 2)
+                        self.boss_projectiles.append(
+                            BossProjectile(e.x, e.y, ang, bullet_fast, 12)
+                        )
+                    e.attack_timer = 3
+
+                elif phase < 240:
+                    # Estrela (5 pontas, 2 camadas de velocidade)
+                    e.spiral_angle += 0.07
+                    for arm in range(5):
+                        ang = e.spiral_angle + arm * (2 * math.pi / 5)
+                        self.boss_projectiles.append(
+                            BossProjectile(e.x, e.y, ang, bullet_slow, 8)
+                        )
+                        self.boss_projectiles.append(
+                            BossProjectile(e.x, e.y, ang, bullet_fast, 8)
+                        )
+                    e.attack_timer = 6
+
+                elif phase < 300:
+                    # Cruz giratória (4 feixes grossos)
+                    e.spiral_angle += 0.06
+                    for arm in range(4):
+                        base = e.spiral_angle + arm * (math.pi / 2)
+                        for spread in [-0.1, 0, 0.1]:
+                            self.boss_projectiles.append(
+                                BossProjectile(e.x, e.y, base + spread, bullet_med, 10)
+                            )
+                    e.attack_timer = 4
+
+                else:
+                    # Chuva caótica 360°
+                    for _ in range(12):
+                        ang = random.uniform(0, 2 * math.pi)
+                        spd = random.uniform(bullet_slow * 0.7, bullet_fast)
+                        self.boss_projectiles.append(
+                            BossProjectile(e.x, e.y, ang, spd, 12)
+                        )
+                    e.attack_timer = 6
 
         # Atualiza projéteis do boss
         for bp in self.boss_projectiles:
@@ -209,6 +263,21 @@ class Game:
                 self.player.hp -= bp.damage
                 self.player.invincible = 20
                 bp.lifetime = 0
+
+        # Colisão entre projéteis do player e do boss
+        for p in self.projectiles:
+            if p.lifetime <= 0:
+                continue
+            for bp in self.boss_projectiles:
+                if bp.lifetime <= 0:
+                    continue
+                dx = p.x - bp.x
+                dy = p.y - bp.y
+                if dx * dx + dy * dy < 10 * 10:
+                    p.lifetime = 0
+                    bp.lifetime = 0
+                    break
+
         self.boss_projectiles = [bp for bp in self.boss_projectiles if bp.lifetime > 0]
 
         # Atualiza projéteis

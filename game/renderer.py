@@ -12,7 +12,8 @@ from graphics import (
 )
 from .config import (
     SCREEN_W, SCREEN_H, WORLD_W, WORLD_H,
-    PLAYER_SHAPE, GRADE_SHAPES, BOSS_SHAPE, PROJ_SHAPE, XP_SHAPE,
+    PLAYER_SHAPE, PLAYER_LEGS, PLAYER_BACKPACK,
+    GRADE_SHAPES, BOSS_SHAPE, PROJ_SHAPE, XP_SHAPE,
     GRADE_COLORS,
 )
 from .state import GameState
@@ -200,17 +201,46 @@ class Renderer:
                 draw_filled_circle(scr, int(sx), int(sy), 5, (255, 60, 60))
                 draw_circle(scr, int(sx), int(sy), 5, (255, 200, 100))
 
-        # Jogador (aluno)
+        # Jogador (estudante)
         blink = game.player.invincible > 0 and (game.frame % 4 < 2)
         if not blink:
-            pts = self._transform_shape(PLAYER_SHAPE, game.player.x, game.player.y,
-                                        game.player.angle, cam)
-            player_colors = [
-                (40, 100, 200), (60, 140, 230), (30, 80, 180),
-                (50, 120, 210), (35, 90, 190), (45, 110, 220)
+            px, py = game.player.x, game.player.y
+            ang = game.player.angle
+
+            # Animação de caminhada
+            walk_offset = math.sin(game.frame * 0.3) * 2 if abs(game.player.speed) > 0.1 else 0
+
+            # Mochila (atrás do corpo)
+            bp_pts = self._transform_shape(PLAYER_BACKPACK, px, py, ang, cam)
+            scanline_fill(scr, bp_pts, (60, 40, 20))
+            draw_polygon(scr, bp_pts, (90, 60, 30))
+
+            # Pernas (com animação)
+            for i, leg in enumerate(PLAYER_LEGS):
+                leg_off = walk_offset if i == 0 else -walk_offset
+                offset_leg = [(lx, ly + leg_off) for lx, ly in leg]
+                leg_pts = self._transform_shape(offset_leg, px, py, ang, cam)
+                scanline_fill(scr, leg_pts, (40, 40, 100))
+                draw_polygon(scr, leg_pts, (60, 60, 140))
+
+            # Corpo (camiseta)
+            body_pts = self._transform_shape(PLAYER_SHAPE, px, py, ang, cam)
+            body_colors = [
+                (40, 100, 200), (60, 130, 220),
+                (50, 120, 210), (40, 100, 200)
             ]
-            scanline_fill_gradient(scr, pts, player_colors)
-            draw_polygon(scr, pts, (150, 200, 255))
+            scanline_fill_gradient(scr, body_pts, body_colors)
+            draw_polygon(scr, body_pts, (80, 160, 255))
+
+            # Cabeça (círculo)
+            head_local = [(0, -8)]
+            head_screen = self._transform_shape(
+                [head_local[0], head_local[0], head_local[0]], px, py, ang, cam
+            )
+            hx, hy = int(head_screen[0][0]), int(head_screen[0][1])
+            head_r = max(3, int(5 * cam.zoom))
+            draw_filled_circle(scr, hx, hy, head_r, (220, 180, 140))
+            draw_circle(scr, hx, hy, head_r, (180, 140, 100))
 
         # HUD
         self._render_hud(game)
