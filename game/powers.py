@@ -22,9 +22,9 @@ POWER_DEFS = {
     "grupo": {
         "name": "GRUPO DE ESTUDOS",
         "desc": [
-            "ATAQUE +20%",
-            "ATAQUE +40%",
-            "ATAQUE +60%",
+            "+1 LAPIS, ATAQUE +20%",
+            "+2 LAPIS, ATAQUE +40%",
+            "+3 LAPIS, ATAQUE +60%",
         ],
         "max_level": 3,
         "icon": "G",
@@ -65,6 +65,18 @@ POWER_DEFS = {
         "max_level": 3,
         "icon": "N",
         "color": (180, 100, 220),
+    },
+    "reforco": {
+        "name": "AULA DE REFORCO",
+        "desc": [
+            "VIDA MAX +20%",
+            "VIDA MAX +40%",
+            "VIDA MAX +60%",
+            "VIDA MAX +80%",
+        ],
+        "max_level": 4,
+        "icon": "R",
+        "color": (50, 220, 150),
     },
 }
 
@@ -107,8 +119,8 @@ class PowerManager:
         return 1.0 + lvl * 0.15
 
     def extra_projectiles(self):
-        """Projéteis extras (removido, retorna 0)."""
-        return 0
+        """Projéteis extras (Grupo de Estudos)."""
+        return self.levels["grupo"]
 
     def attack_speed_mult(self):
         """Multiplicador de velocidade de ataque (Grupo de Estudos)."""
@@ -128,6 +140,11 @@ class PowerManager:
     def hp_regen_per_sec(self):
         """HP regenerado por segundo (Noite de Estudo)."""
         return self.levels["noitada"]
+
+    def max_hp_mult(self):
+        """Multiplicador de vida máxima (Aula de Reforço)."""
+        lvl = self.levels["reforco"]
+        return 1.0 + lvl * 0.2
 
     def get_active(self):
         """Retorna lista de (power_id, level) dos poderes ativos."""
