@@ -188,41 +188,61 @@ class Renderer:
         # Fundo da área de jogo
         fill_rect(scr, PLAY_X, PLAY_Y, PLAY_W, PLAY_H, (10, 15, 30))
 
-        # Grid sutil na área de jogo
+        # Calcular janela (mundo) e viewport (tela) — Requisito f)
+        # A janela segue o jogador (translação) e tem zoom (escala)
+        half_w = (PLAY_W / game.zoom) / 2
+        half_h = (PLAY_H / game.zoom) / 2
+        wx_min = game.cam_x - half_w
+        wy_min = game.cam_y - half_h
+        wx_max = game.cam_x + half_w
+        wy_max = game.cam_y + half_h
+        world_window = (wx_min, wy_min, wx_max, wy_max)
+        # viewport com Y trocado para não inverter (mundo já usa Y pra baixo)
+        vp = (PLAY_X, PLAY_Y + PLAY_H, PLAY_X + PLAY_W, PLAY_Y)
+        vp_mat = window_to_viewport(world_window, vp)
+        clip = (PLAY_X, PLAY_Y, PLAY_X + PLAY_W - 1, PLAY_Y + PLAY_H - 1)
+
+        # Grid sutil com Cohen-Sutherland clipping
         grid_size = 40
         for gx in range(0, PLAY_W + 1, grid_size):
-            draw_line_clipped(scr, PLAY_X + gx, PLAY_Y, PLAY_X + gx, PLAY_Y + PLAY_H,
-                              (20, 25, 45), PLAY_X, PLAY_Y, PLAY_X + PLAY_W - 1, PLAY_Y + PLAY_H - 1)
+            sx0, sy0 = transform_point(vp_mat, gx, 0)
+            sx1, sy1 = transform_point(vp_mat, gx, PLAY_H)
+            draw_line_clipped(scr, int(sx0), int(sy0), int(sx1), int(sy1),
+                              (20, 25, 45), *clip)
         for gy in range(0, PLAY_H + 1, grid_size):
-            draw_line_clipped(scr, PLAY_X, PLAY_Y + gy, PLAY_X + PLAY_W, PLAY_Y + gy,
-                              (20, 25, 45), PLAY_X, PLAY_Y, PLAY_X + PLAY_W - 1, PLAY_Y + PLAY_H - 1)
+            sx0, sy0 = transform_point(vp_mat, 0, gy)
+            sx1, sy1 = transform_point(vp_mat, PLAY_W, gy)
+            draw_line_clipped(scr, int(sx0), int(sy0), int(sx1), int(sy1),
+                              (20, 25, 45), *clip)
+
+        # Borda do mundo (visível quando com zoom)
+        world_corners = [(0, 0), (PLAY_W, 0), (PLAY_W, PLAY_H), (0, PLAY_H)]
+        world_screen = [transform_point(vp_mat, px, py) for px, py in world_corners]
+        draw_polygon_clipped(scr, world_screen, (60, 60, 100), clip)
 
         # Borda da área de jogo
         draw_rect(scr, PLAY_X - 1, PLAY_Y - 1, PLAY_W + 2, PLAY_H + 2, (100, 100, 150))
         draw_rect(scr, PLAY_X - 2, PLAY_Y - 2, PLAY_W + 4, PLAY_H + 4, (60, 60, 100))
 
-        # Clip rect para a área de jogo
-        clip = (PLAY_X, PLAY_Y, PLAY_X + PLAY_W - 1, PLAY_Y + PLAY_H - 1)
-
         # Boss
-        bx = PLAY_X + int(game.boss.x)
-        by = PLAY_Y + int(game.boss.y)
-        self._render_boss(game.boss, bx, by)
+        bx, by = transform_point(vp_mat, game.boss.x, game.boss.y)
+        self._render_boss(game.boss, int(bx), int(by), vp_mat, game.zoom)
 
         # Projéteis do boss
         for bp in game.boss_projectiles:
-            sx = PLAY_X + int(bp.x)
-            sy = PLAY_Y + int(bp.y)
-            if PLAY_X <= sx < PLAY_X + PLAY_W and PLAY_Y <= sy < PLAY_Y + PLAY_H:
-                draw_filled_circle(scr, sx, sy, 4, (255, 60, 60))
-                draw_circle(scr, sx, sy, 4, (255, 200, 100))
+            sx, sy = transform_point(vp_mat, bp.x, bp.y)
+            sx, sy = int(sx), int(sy)
+            if clip[0] <= sx <= clip[2] and clip[1] <= sy <= clip[3]:
+                r = max(2, int(4 * game.zoom))
+                draw_filled_circle(scr, sx, sy, r, (255, 60, 60))
+                draw_circle(scr, sx, sy, r, (255, 200, 100))
 
         # Projéteis do jogador
         for p in game.projectiles:
-            sx = PLAY_X + int(p.x)
-            sy = PLAY_Y + int(p.y)
-            if PLAY_X <= sx < PLAY_X + PLAY_W and PLAY_Y <= sy < PLAY_Y + PLAY_H:
-                pts = self._transform_shape_play(PROJ_SHAPE, p.x, p.y, p.angle)
+            sx, sy = transform_point(vp_mat, p.x, p.y)
+            sx, sy = int(sx), int(sy)
+            if clip[0] <= sx <= clip[2] and clip[1] <= sy <= clip[3]:
+                pts = self._transform_shape_vp(PROJ_SHAPE, p.x, p.y, p.angle, vp_mat, game.zoom)
                 if Assets.lapis_sprite:
                     tex_coords = [(0, 0), (1, 0), (1, 1), (0, 1)]
                     scanline_fill_texture_alpha(scr, pts, tex_coords,
@@ -243,7 +263,7 @@ class Renderer:
             walk_offset = math.sin(game.frame * 0.3) * 2
 
             # Mochila
-            bp_pts = self._transform_shape_play(PLAYER_BACKPACK, px, py, ang)
+            bp_pts = self._transform_shape_vp(PLAYER_BACKPACK, px, py, ang, vp_mat, game.zoom)
             if len(bp_pts) >= 3:
                 scanline_fill(scr, bp_pts, (60, 40, 20))
                 draw_polygon(scr, bp_pts, (90, 60, 30))
@@ -252,13 +272,13 @@ class Renderer:
             for i, leg in enumerate(PLAYER_LEGS):
                 leg_off = walk_offset if i == 0 else -walk_offset
                 offset_leg = [(lx, ly + leg_off) for lx, ly in leg]
-                leg_pts = self._transform_shape_play(offset_leg, px, py, ang)
+                leg_pts = self._transform_shape_vp(offset_leg, px, py, ang, vp_mat, game.zoom)
                 if len(leg_pts) >= 3:
                     scanline_fill(scr, leg_pts, (40, 40, 100))
                     draw_polygon(scr, leg_pts, (60, 60, 140))
 
             # Corpo
-            body_pts = self._transform_shape_play(PLAYER_SHAPE, px, py, ang)
+            body_pts = self._transform_shape_vp(PLAYER_SHAPE, px, py, ang, vp_mat, game.zoom)
             if len(body_pts) >= 3:
                 body_colors = [(40, 100, 200), (60, 130, 220),
                                (50, 120, 210), (40, 100, 200)]
@@ -266,27 +286,30 @@ class Renderer:
                 draw_polygon(scr, body_pts, (80, 160, 255))
 
             # Cabeça
-            hx = PLAY_X + int(px)
-            hy = PLAY_Y + int(py - 12)
-            draw_filled_circle(scr, hx, hy, 5, (220, 180, 140))
-            draw_circle(scr, hx, hy, 5, (180, 140, 100))
+            head_x, head_y = transform_point(vp_mat, px, py - 12)
+            hr = max(3, int(5 * game.zoom))
+            draw_filled_circle(scr, int(head_x), int(head_y), hr, (220, 180, 140))
+            draw_circle(scr, int(head_x), int(head_y), hr, (180, 140, 100))
 
             # Hitbox visível no foco (Shift)
             if game.player.focused:
-                cx = PLAY_X + int(px)
-                cy = PLAY_Y + int(py)
-                draw_filled_circle(scr, cx, cy, 3, (255, 255, 255))
-                draw_circle(scr, cx, cy, 6, (255, 100, 100))
+                cx, cy = transform_point(vp_mat, px, py)
+                draw_filled_circle(scr, int(cx), int(cy), max(2, int(3 * game.zoom)), (255, 255, 255))
+                draw_circle(scr, int(cx), int(cy), max(4, int(6 * game.zoom)), (255, 100, 100))
+
+        # Indicador de zoom
+        if abs(game.zoom - 1.0) > 0.05:
+            draw_text(scr, f"ZOOM {game.zoom:.1f}X", PLAY_X + 5, PLAY_Y + 5, (200, 200, 100), 1)
 
         # HUD (painel direito)
         self._render_hud(game)
 
-    def _render_boss(self, boss, sx, sy):
+    def _render_boss(self, boss, sx, sy, vp_mat, zoom):
         scr = self.screen
+        boss_sc = 1.5
         if Assets.boss_sprite:
-            boss_sc = 1.5
-            pts = self._transform_shape_play(BOSS_SHAPE, boss.x, boss.y,
-                                              boss.anim_timer * 0.3, boss_sc)
+            pts = self._transform_shape_vp(BOSS_SHAPE, boss.x, boss.y,
+                                            boss.anim_timer * 0.3, vp_mat, zoom, boss_sc)
             tex_coords = []
             for px, py in BOSS_SHAPE:
                 u = (px + 32) / 64
@@ -296,9 +319,8 @@ class Renderer:
                                   Assets.boss_sprite, Assets.boss_sprite_w, Assets.boss_sprite_h)
             draw_polygon(scr, pts, (180, 120, 60))
         else:
-            boss_sc = 1.5
-            pts = self._transform_shape_play(BOSS_SHAPE, boss.x, boss.y,
-                                              boss.anim_timer * 0.3, boss_sc)
+            pts = self._transform_shape_vp(BOSS_SHAPE, boss.x, boss.y,
+                                            boss.anim_timer * 0.3, vp_mat, zoom, boss_sc)
             boss_colors = []
             for i in range(len(pts)):
                 shade = 40 + (i * 15) % 60
@@ -306,15 +328,17 @@ class Renderer:
             scanline_fill_gradient(scr, pts, boss_colors)
             draw_polygon(scr, pts, (150, 100, 40))
 
-        draw_text_centered(scr, "NEGRESCO", sx, sy - 40, (255, 200, 100), 2)
+        draw_text_centered(scr, "NEGRESCO", sx, sy - int(40 * zoom), (255, 200, 100), 2)
 
-    def _transform_shape_play(self, shape, wx, wy, angle, extra_scale=1.0):
-        """Transforma shape para coordenadas de tela (área de jogo)."""
+    def _transform_shape_vp(self, shape, wx, wy, angle, vp_mat, zoom, extra_scale=1.0):
+        """Transforma shape: rotação+escala local, depois world→viewport."""
         m = identity()
         m = mat_mult(rotation(angle), m)
-        m = mat_mult(scale(extra_scale, extra_scale), m)
+        m = mat_mult(scale(extra_scale * zoom, extra_scale * zoom), m)
         pts = apply_transform(m, shape)
-        return [(px + PLAY_X + wx, py + PLAY_Y + wy) for px, py in pts]
+        # Converte centro do mundo para viewport, depois desloca os pontos locais
+        cx, cy = transform_point(vp_mat, wx, wy)
+        return [(px + cx, py + cy) for px, py in pts]
 
     def _render_hud(self, game):
         scr = self.screen
@@ -419,7 +443,7 @@ class Renderer:
 
         # Transformação janela (área de jogo) → viewport (minimap)
         window = (0, 0, PLAY_W, PLAY_H)
-        viewport = (mm_x, mm_y, mm_x + mm_w, mm_y + mm_h)
+        viewport = (mm_x, mm_y + mm_h, mm_x + mm_w, mm_y)
         m = window_to_viewport(window, viewport)
         clip = (mm_x, mm_y, mm_x + mm_w - 1, mm_y + mm_h - 1)
 
@@ -451,6 +475,18 @@ class Renderer:
         psx, psy = transform_point(m, game.player.x, game.player.y)
         draw_filled_circle(scr, int(psx), int(psy), 3, (50, 150, 255))
         draw_circle(scr, int(psx), int(psy), 3, (100, 200, 255))
+
+        # Retângulo da câmera/janela atual (Cohen-Sutherland clipping)
+        half_w = (PLAY_W / game.zoom) / 2
+        half_h = (PLAY_H / game.zoom) / 2
+        cam_corners = [
+            (game.cam_x - half_w, game.cam_y - half_h),
+            (game.cam_x + half_w, game.cam_y - half_h),
+            (game.cam_x + half_w, game.cam_y + half_h),
+            (game.cam_x - half_w, game.cam_y + half_h),
+        ]
+        cam_screen = [transform_point(m, cx, cy) for cx, cy in cam_corners]
+        draw_polygon_clipped(scr, cam_screen, (255, 255, 0), clip)
 
         y_after = mm_y + mm_h + 10
 

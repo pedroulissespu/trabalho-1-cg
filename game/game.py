@@ -29,6 +29,9 @@ class Game:
         self.fight_timer = 0
         self.title_anim = 0.0
         self.menu_selection = 0
+        self.zoom = 1.0
+        self.cam_x = PLAY_W / 2
+        self.cam_y = PLAY_H / 2
 
     def reset(self):
         self.player = Player()
@@ -37,16 +40,23 @@ class Game:
         self.boss_projectiles.clear()
         self.frame = 0
         self.fight_timer = 0
+        self.zoom = 1.0
+        self.cam_x = PLAY_W / 2
+        self.cam_y = PLAY_H / 2
 
     def auto_attack(self):
         if self.player.attack_timer > 0:
             return
 
         mx, my = pygame.mouse.get_pos()
-        # Converter posição da tela para coordenadas da área de jogo
+        # Converter posição da tela para coordenadas do mundo via viewport inverso
         from .config import PLAY_X, PLAY_Y
-        gx = mx - PLAY_X
-        gy = my - PLAY_Y
+        half_w = (PLAY_W / self.zoom) / 2
+        half_h = (PLAY_H / self.zoom) / 2
+        wx_min = self.cam_x - half_w
+        wy_min = self.cam_y - half_h
+        gx = wx_min + (mx - PLAY_X) / self.zoom
+        gy = wy_min + (my - PLAY_Y) / self.zoom
         base_angle = math.atan2(gy - self.player.y, gx - self.player.x)
 
         dmg = self.player.damage
@@ -152,6 +162,16 @@ class Game:
         self.player.update(keys)
         self.boss.update()
 
+        # Câmera segue o jogador (translação da janela)
+        lerp = 0.1
+        self.cam_x += (self.player.x - self.cam_x) * lerp
+        self.cam_y += (self.player.y - self.cam_y) * lerp
+        # Limitar câmera para não mostrar fora do mundo
+        half_w = (PLAY_W / self.zoom) / 2
+        half_h = (PLAY_H / self.zoom) / 2
+        self.cam_x = max(half_w, min(PLAY_W - half_w, self.cam_x))
+        self.cam_y = max(half_h, min(PLAY_H - half_h, self.cam_y))
+
         # Player atira automaticamente
         self.auto_attack()
 
@@ -234,6 +254,10 @@ class Game:
                 elif self.state == GameState.PLAYING:
                     if event.key == pygame.K_p or event.key == pygame.K_ESCAPE:
                         self.state = GameState.PAUSED
+                    elif event.key in (pygame.K_PLUS, pygame.K_EQUALS, pygame.K_KP_PLUS):
+                        self.zoom = min(3.0, self.zoom + 0.2)
+                    elif event.key in (pygame.K_MINUS, pygame.K_KP_MINUS):
+                        self.zoom = max(0.5, self.zoom - 0.2)
 
                 elif self.state == GameState.PAUSED:
                     if event.key == pygame.K_p or event.key == pygame.K_ESCAPE:
@@ -242,6 +266,10 @@ class Game:
                 elif self.state in (GameState.GAME_OVER, GameState.VICTORY):
                     if event.key == pygame.K_RETURN:
                         self.state = GameState.TITLE
+
+            elif event.type == pygame.MOUSEWHEEL:
+                if self.state == GameState.PLAYING:
+                    self.zoom = max(0.5, min(3.0, self.zoom + event.y * 0.15))
 
         return True
 
