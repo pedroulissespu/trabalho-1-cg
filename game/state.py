@@ -4,4 +4,3 @@ class GameState:
     PAUSED = 2
     GAME_OVER = 3
     VICTORY = 4
-    LEVEL_UP = 5
