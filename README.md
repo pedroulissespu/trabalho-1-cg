@@ -138,7 +138,7 @@ pip install pygame && python main.py
 
 ## Vídeo de Demonstração
 
-[Link para o vídeo](INSERIR_LINK_AQUI)
+[Link para o vídeo](https://www.youtube.com/watch?v=da5PfWmgP30)
 
 ## Funcionalidades Detalhadas
 
