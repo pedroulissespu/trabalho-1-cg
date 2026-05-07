@@ -101,7 +101,7 @@ class Renderer:
         draw_filled_circle(scr, left_cx, vs_y - 15, 10, (220, 180, 140))
         draw_circle(scr, left_cx, vs_y - 15, 10, (180, 140, 100))
 
-        # Capelo (preenchido com Flood Fill — requisito c)
+        # Capelo
         capelo_color = (255, 220, 50)
         draw_line(scr, left_cx - 14, vs_y - 24, left_cx + 14, vs_y - 24, capelo_color)
         draw_line(scr, left_cx - 14, vs_y - 24, left_cx, vs_y - 32, capelo_color)
