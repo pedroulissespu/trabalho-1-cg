@@ -57,10 +57,6 @@ trabalho-1-cg/
 ├── assets/                 # Sprites e texturas
 │   ├── negresco.png        # Sprite do boss
 │   ├── lapis.png           # Sprite do projétil
-│   ├── nota_d.png          # Nota D (projétil do boss)
-│   ├── nota_d-.png         # Nota D-
-│   ├── nota_f.png          # Nota F
-│   └── texture_ground.png  # Textura de chão (opcional)
 ├── game/                   # Lógica do jogo
 │   ├── game.py             # Loop principal, colisões, ataques
 │   ├── renderer.py         # Renderização (usa os algoritmos gráficos)
