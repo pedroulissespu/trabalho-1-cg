@@ -168,7 +168,7 @@ pip install pygame && python main.py
 
 ## Equipe
 
-- Pedro (e demais membros da equipe)
+- Pedro
 
 ## Disciplina
 
